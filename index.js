@@ -16,12 +16,71 @@ app.get('/', function(req, res) {
 });
 
 //DB setup
-const mongoose = require("mongoose");
-const urlSchema = new mongoose.Schema({
-  short_url: String,
-  original_url: String
-})
-var urlModel = mongoose.model('Url', urlSchema);
+
+var Connection = require('tedious').Connection;  
+var Request = require('tedious').Request;  
+var TYPES = require('tedious').TYPES;  
+
+var config = {  
+    server: 'localhost',  //update me
+    authentication: {
+        type: 'default',
+        options: {
+            userName: 'SA', //update me
+            password: 'Adminxyz22#'  //update me
+        }
+    },
+    options: {
+        // If you are on Microsoft Azure, you need encryption:
+        encrypt: true,
+        database: 'your_database'  //update me
+    }
+};  
+var connection = new Connection(config);  
+connection.on('connect', function(err) {  
+    if (err) console.log(err);
+    console.log("DB Connected");  
+});
+
+connection.connect();
+function insertUrl(shortUrl, longUrl) {  
+    const request = new Request(`INSERT Urls (original_url, short_url) VALUES (@longurl, @shorturl);`, function(err) {  
+      if (err) console.log(err);  
+    });  
+    request.addParameter('longurl',TYPES.VarChar, longUrl);
+    request.addParameter('shorturl', TYPES.VarChar, shortUrl);
+    /*
+    var result = "";  
+    request.on('row', function(columns) {  
+        columns.forEach(function(column) {  
+          if (column.value === null) {  
+            console.log('NULL');  
+          } else {  
+            result+= column.value + " ";  
+          }  
+        });  
+        console.log(result);  
+        result ="";  
+    });  
+    */
+    request.on('done', function(rowCount, more) {  
+      console.log(rowCount + ' rows returned');  
+    });  
+    // Close the connection after the final event emitted by the request, after the callback passes
+    request.on("requestCompleted", function (rowCount, more) {
+        connection.close();
+    });
+    connection.execSql(request);  
+}
+
+function selectUrl(shortUrl) {
+  var sql = `SELECT (original_url, short_url) FROM Urls WHERE "short_url" = @shorturl`
+  const request = new Request(sql,(err) => {
+    if (err) console.log(err);
+  })
+  request.addParameter('shorturl', TYPES.VarChar, shortUrl);
+  connection.execSql(request);
+}
 
 // Your first API endpoint
 app.get('/api/hello', function(req, res) {
@@ -33,35 +92,11 @@ app.post('/api/shorturl', async (req, res) => {
   let urlObject;
   try {
     urlObject = new URL(rawUrl);
-    console.log(urlObject);
     const gg = await dns.promises.resolve(urlObject.hostname);
-
-    console.log("Connecting to database...");
+    // console.log("Connecting to database...");
     let short_url = Math.floor(Math.random()*1000000000);
-    let urlEntry = {short_url: urlObject.hostname}; 
-    const uri = process.env.MONGO_URI;
-    const mongoptions = { 
-      useNewUrlParser: true, 
-      useUnifiedTopology: true, 
-      connectTimeoutMS: 25000,
-      socketTimeoutMS: 25000,
-    }
-    mongoose.connect(uri,mongoptions,async (err) => {
-      const DBEntry = new urlModel({
-        short_url: String,
-        original_url: String
-      });
-      await DBEntry.save(err=> {
-        if(err) console.log(err);
-        else res.send({
-          original_url : urlObject.hostname, 
-          short_url : short_url
-        })
-      })
-      console.log("something happened")
-    });
-  } 
-  catch (e) {
+    let urlEntry = {short_url: short_url, original_url: urlObject.hostname}; 
+  } catch (e) {
     console.log(e);
     res.json({
       error: 'invalid url'
@@ -70,7 +105,8 @@ app.post('/api/shorturl', async (req, res) => {
 });
 
 app.get('/api/shorturl/:short_url', (req,res) => {
-  // Retrieve {req.params.short_url: actual_url}
+  var url = req.params.short_url;
+  // Retrieve original_url based on req.params.short_url from database
   // Redirect to actual url
 });
 

@@ -13,7 +13,7 @@
     "dotenv": "^8.2.0",
     "express": "^4.17.1",
     "mongodb": "^4.11.0",
-    "mongoose": "^6.7.2"
+    "tedious": "^15.1.2"
   },
   "license": "MIT",
   "devDependencies": {
