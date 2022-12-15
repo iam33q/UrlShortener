@@ -45,7 +45,7 @@ connection.on('connect', function(err) {
 
 connection.connect();
 function insertUrl(shortUrl, longUrl) {  
-    const request = new Request(`INSERT INTO Urls (original_url, short_url) VALUES (@longurl, @shorturl);`, function(err) {  
+    const request = new Request(`INSERT INTO master.dbo.Urls (original_url, short_url) VALUES (@longurl, @shorturl);`, function(err) {  
       if (err) console.log(err);  
     });  
     request.addParameter('longurl',TYPES.VarChar, longUrl);
@@ -55,18 +55,18 @@ function insertUrl(shortUrl, longUrl) {
     });  
     // Close the connection after the final event emitted by the request, after the callback passes
     request.on("requestCompleted", function (rowCount, more) {
-        connection.close();
+      console.log("URL successfully added to database.")
     });
     connection.execSql(request);  
 }
 
 function selectUrl(shortUrl) {
-  var sql = `SELECT (original_url, short_url) FROM dbo.Urls WHERE "short_url" = @shorturl`
+  var sql = `SELECT * FROM master.dbo.Urls WHERE short_url = @shorturl`
   const request = new Request(sql,(err) => {
     if (err) console.log(err);
   })
   request.addParameter('shorturl', TYPES.VarChar, shortUrl);
-  request.addOutputParameter('original_url',TYPES.VarChar)
+  request.addOutputParameter('retrieved_data',TYPES.VarChar)
   request.on('returnValue', function(parameterName, value, metadata) {
     console.log(parameterName + ' = ' + value);
   });
@@ -84,11 +84,10 @@ app.post('/api/shorturl', async (req, res) => {
   try {
     urlObject = new URL(rawUrl);
     const gg = await dns.promises.resolve(urlObject.hostname);
-    // console.log("Connecting to database...");
     let short_url = Math.floor(Math.random()*1000000000).toString();
     let urlEntry = {short_url: short_url, original_url: urlObject.hostname}; 
-  insertUrl(urlEntry.short_url,urlEntry.original_url);
-  res.send(urlEntry);
+    insertUrl(urlEntry.short_url,urlEntry.original_url);
+    res.send(urlEntry);
   } catch (e) {
     console.log(e);
     res.json({
@@ -97,11 +96,9 @@ app.post('/api/shorturl', async (req, res) => {
   };
 });
 
-
 app.get('/api/shorturl/:short_url', (req,res) => {
-  var url = req.params.short_url;
-  // Retrieve original_url based on req.params.short_url from database
-  // Redirect to actual url
+  const retrievedData = selectUrl(req.params.short_url);
+  res.send({"url":req.params.short_url});
 });
 
 app.listen(port, function() {
